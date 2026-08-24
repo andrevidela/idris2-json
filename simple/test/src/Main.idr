@@ -1,5 +1,6 @@
 module Main
 
+import Data.Singleton
 import Data.List.Quantifiers as LQ
 import Data.SortedMap
 import Data.Vect.Quantifiers as VQ
@@ -139,6 +140,18 @@ data Weekday =
 
 %runElab derive "Weekday" [Show,Eq,ToJSON,FromJSON]
 
+Eq (Singleton v) where _ == _ = True
+
+Show a => Show (Singleton {a} v) where
+  showPrec p (Val v) = showCon p "Val" (showArg v)
+
+record Sing where
+  constructor MkSing
+  str : Singleton "3.0"
+  num : Singleton 12
+
+%runElab derive "Sing" [Show,Eq,ToJSON,FromJSON]
+
 --------------------------------------------------------------------------------
 --          Generators
 --------------------------------------------------------------------------------
@@ -197,10 +210,13 @@ unicode16 = noSpecial <$> charc '\0' '\65535'
     noLowSurrogate : Char -> Char
     noLowSurrogate c =
       let idx = ord c
-      in if idx >= 0xDC00 && idx <= 0xDFFF then ' ' else c
+      in if (idx >= 0xDC00 && idx <= 0xDFFF) then ' ' else c
+
+    noBOM : Char -> Char
+    noBOM c = if ord c == 65279 then ' ' else c
 
     noSpecial : Char -> Char
-    noSpecial = noControl . noHighSurrogate . noLowSurrogate
+    noSpecial = noControl . noHighSurrogate . noLowSurrogate . noBOM
 
 doubleE100 : Gen Double
 doubleE100 = double $ exponentialFrom 0 (-1.0e100) 1.0e100
@@ -379,6 +395,9 @@ prop_all = roundTrip @{AllLEq} all
 prop_allv : Property
 prop_allv = roundTrip @{AllVEq} allv
 
+prop_sing : Property
+prop_sing = roundTrip (pure $ MkSing %search %search)
+
 main : IO ()
 main = test . pure $
   MkGroup
@@ -413,4 +432,5 @@ main = test . pure $
     , ("prop_weekday", prop_weekday)
     , ("prop_all", prop_all)
     , ("prop_allv", prop_allv)
+    , ("prop_sing", prop_sing)
     ]
