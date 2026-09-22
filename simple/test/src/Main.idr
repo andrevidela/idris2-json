@@ -147,6 +147,16 @@ record Sing where
 
 %runElab derive "Sing" [Show,Eq,ToJSON,FromJSON]
 
+record OptionalFields where
+  constructor MkOptF
+  opt : Maybe String
+  field : Maybe Int
+
+optFields : Options
+optFields = MkOptions defaultTaggedObject True ((==) "opt") True id id
+
+%runElab derive "OptionalFields" [Show,Eq,ToJSON, customFromJSON Export optFields]
+
 --------------------------------------------------------------------------------
 --          Generators
 --------------------------------------------------------------------------------
@@ -393,6 +403,17 @@ prop_allv = roundTrip @{AllVEq} allv
 prop_sing : Property
 prop_sing = roundTrip (pure $ MkSing %search %search)
 
+prop_optionalField : Property
+prop_optionalField = property1 $ do
+  decode #"{"field": 3}"# === -- missing opt field is ok
+    Right (MkOptF Nothing (Just 3))
+  decode #"{"field": null}"# === -- compulsory field with null value is ok
+    Right (MkOptF Nothing Nothing)
+  decode #"{"opt": "hello", "field": 3}"# === -- both fields is obviously ok
+    Right (MkOptF (Just "hello") (Just 3))
+  decodeMaybe #"{"opt": "hello"}"# === -- missing compulsory field is not ok
+    (Nothing {ty = OptionalFields})
+
 main : IO ()
 main = test . pure $
   MkGroup
@@ -428,4 +449,5 @@ main = test . pure $
     , ("prop_all", prop_all)
     , ("prop_allv", prop_allv)
     , ("prop_sing", prop_sing)
+    , ("prop_optionalField", prop_optionalField)
     ]
